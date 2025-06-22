@@ -27,6 +27,13 @@ class UserSerializer(serializers.ModelSerializer):
         instance.save()
         return instance
     
+class ProfileSerializer(serializers.ModelSerializer):
+    user = UserSerializer(read_only=True)  # para incluir datos básicos del usuario si quieres
+
+    class Meta:
+        model = Profile
+        fields = ['user', 'profile_image']
+
 from rest_framework_simplejwt.serializers import TokenObtainPairSerializer
 
 class CustomTokenObtainPairSerializer(TokenObtainPairSerializer):
