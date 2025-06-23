@@ -2,23 +2,39 @@ from rest_framework import viewsets, permissions, status, generics
 from rest_framework.response import Response
 from rest_framework.decorators import action
 from rest_framework_simplejwt.views import TokenObtainPairView
-from rest_framework_simplejwt.tokens import RefreshToken
-
+from rest_framework_simplejwt.tokens import RefreshToken, TokenError
+from rest_framework import generics
 from django.shortcuts import get_object_or_404
-
+from rest_framework.views import APIView
 from .models import Blog, Review, Comment, Profile
 from .serializers import (
     UserSerializer,
     BlogSerializer, BlogCreateSerializer, BlogListSerializer, BlogUpdateSerializer,
     ReviewSerializer, ReviewCreateSerializer, ReviewListSerializer,
     CommentSerializer, CommentCreateSerializer, CommentListSerializer,
-    CustomTokenObtainPairSerializer,
+    CustomTokenObtainPairSerializer, ProfileSerializer,
 )
 from django.contrib.auth.models import User
 
+#View de Login y Logout
 class CustomTokenObtainPairView(TokenObtainPairView):
     serializer_class = CustomTokenObtainPairSerializer
 
+class LogoutView(APIView):
+    permission_classes = [permissions.IsAuthenticated]
+
+    def post(self, request):
+        try:
+            refresh_token = request.data["refresh"]
+            token = RefreshToken(refresh_token)
+            token.blacklist()
+            return Response({"detail": "Logout successful"}, status=status.HTTP_205_RESET_CONTENT)
+        except KeyError:
+            return Response({"detail": "Refresh token is required"}, status=status.HTTP_400_BAD_REQUEST)
+        except TokenError:
+            return Response({"detail": "Invalid or expired token"}, status=status.HTTP_400_BAD_REQUEST)
+
+#View de Usuario 
 class UserViewSet(viewsets.ModelViewSet):
     queryset = User.objects.all()
     serializer_class = UserSerializer
@@ -42,6 +58,7 @@ class UserViewSet(viewsets.ModelViewSet):
         serializer = self.get_serializer(request.user)
         return Response(serializer.data)
 
+#View de Blog
 class BlogViewSet(viewsets.ModelViewSet):
     queryset = Blog.objects.all()
 
@@ -64,6 +81,7 @@ class BlogViewSet(viewsets.ModelViewSet):
         serializer.save(author=self.request.user.username)
 
 
+#View de Review
 class ReviewViewSet(viewsets.ModelViewSet):
     queryset = Review.objects.all()
 
@@ -83,6 +101,7 @@ class ReviewViewSet(viewsets.ModelViewSet):
     def perform_create(self, serializer):
         serializer.save(reviewer=self.request.user)
 
+#View de Comment
 class CommentViewSet(viewsets.ModelViewSet):
     queryset = Comment.objects.all()
 
@@ -102,9 +121,8 @@ class CommentViewSet(viewsets.ModelViewSet):
     def perform_create(self, serializer):
         serializer.save(commenter=self.request.user)
 
-from rest_framework import generics
-from .serializers import ProfileSerializer
 
+# View de Profile
 class ProfileDetail(generics.RetrieveUpdateAPIView):
     queryset = Profile.objects.all()
     serializer_class = ProfileSerializer

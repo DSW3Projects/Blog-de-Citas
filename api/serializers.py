@@ -1,6 +1,7 @@
 from rest_framework import serializers
 from django.contrib.auth.models import User
 from .models import Blog, Review, Comment, Profile
+from rest_framework_simplejwt.serializers import TokenObtainPairSerializer
 
 # 🧑‍🤝‍🧑 Perfil de Usuario
 class UserSerializer(serializers.ModelSerializer):
@@ -34,7 +35,7 @@ class ProfileSerializer(serializers.ModelSerializer):
         model = Profile
         fields = ['user', 'profile_image']
 
-from rest_framework_simplejwt.serializers import TokenObtainPairSerializer
+
 
 class CustomTokenObtainPairSerializer(TokenObtainPairSerializer):
     def validate(self, attrs):
