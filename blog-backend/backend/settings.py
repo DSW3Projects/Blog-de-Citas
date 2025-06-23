@@ -30,7 +30,7 @@ SECRET_KEY = 'django-insecure-ozicfqs_q!lzvy(o1%u7&0_7f7y32%5fndz*ac@cbvzm@4gz3s
 DEBUG = config('DEBUG', default=False, cast=bool)
 
 ALLOWED_HOSTS = ['*']
-
+CORS_ALLOW_ALL_ORIGINS = True
 
 # Application definition
 

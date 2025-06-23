@@ -162,11 +162,20 @@ class BlogCreateSerializer(serializers.ModelSerializer):
     
 class BlogListSerializer(serializers.ModelSerializer):
     reviews = ReviewSerializer(many=True, read_only=True)
+    image = serializers.SerializerMethodField()
+    author = serializers.StringRelatedField()  
+    tags = serializers.StringRelatedField(many=True, read_only=True)  
 
     class Meta:
         model = Blog
         fields = ['id', 'title', 'content', 'author', 'created_at', 'updated_at', 'tags', 'image', 'reviews']
-        read_only_fields = ['author', 'created_at', 'updated_at']  
+        read_only_fields = ['author', 'created_at', 'updated_at']
+
+    def get_image(self, obj):
+        if obj.image:
+            return obj.image.url
+        return None
+
         
 class BlogUpdateSerializer(serializers.ModelSerializer):
     class Meta:
