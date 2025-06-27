@@ -2,34 +2,41 @@ from rest_framework import serializers
 from django.contrib.auth.models import User
 from .models import Blog, Review, Comment, Profile
 from rest_framework_simplejwt.serializers import TokenObtainPairSerializer
+from django.contrib.auth.password_validation import validate_password
 
 # 🧑‍🤝‍🧑 Perfil de Usuario
 class UserSerializer(serializers.ModelSerializer):
-    password = serializers.CharField(write_only=True, required=True, min_length=6)
+    class Meta:
+        model = User
+        fields = ['id', 'username', 'email', 'first_name', 'last_name']
+        read_only_fields = ['id', 'username'] 
+
+class RegisterSerializer(serializers.ModelSerializer):
+    password = serializers.CharField(write_only=True, required=True, validators=[validate_password])
+    password2 = serializers.CharField(write_only=True, required=True)
 
     class Meta:
         model = User
-        fields = ['id', 'username', 'email', 'password', 'first_name', 'last_name']
+        fields = ['username', 'email', 'password', 'password2']
+
+    def validate(self, attrs):
+        if attrs['password'] != attrs['password2']:
+            raise serializers.ValidationError({"password": "Las contraseñas no coinciden."})
+        return attrs
 
     def create(self, validated_data):
-        password = validated_data.pop('password')
-        user = User(**validated_data)
-        user.set_password(password)
-        user.save()
-        Profile.objects.create(user=user)  # crear perfil automáticamente
+        user = User.objects.create_user(
+            username=validated_data['username'],
+            email=validated_data['email'],
+            password=validated_data['password']
+        )
         return user
+    
 
-    def update(self, instance, validated_data):
-        password = validated_data.pop('password', None)
-        for attr, value in validated_data.items():
-            setattr(instance, attr, value)
-        if password:
-            instance.set_password(password)
-        instance.save()
-        return instance
+#Profile Serializer
     
 class ProfileSerializer(serializers.ModelSerializer):
-    user = UserSerializer(read_only=True)  # para incluir datos básicos del usuario si quieres
+    user = UserSerializer(read_only=True) 
 
     class Meta:
         model = Profile
@@ -94,13 +101,12 @@ class CommentListSerializer(serializers.ModelSerializer):
 # ⭐ Review sobre un Blog
 class ReviewSerializer(serializers.ModelSerializer):
     reviewer = UserSerializer(read_only=True)
-    total_likes = serializers.IntegerField(source='total_likes', read_only=True)
     comments = CommentSerializer(many=True, read_only=True)
 
     class Meta:
         model = Review
         fields = [
-            'id', 'blog', 'reviewer', 'rating', 'comment',
+            'id', 'blog', 'reviewer', 'comment',
             'created_at', 'total_likes', 'likes', 'comments'
         ]
         extra_kwargs = {
@@ -110,7 +116,7 @@ class ReviewSerializer(serializers.ModelSerializer):
 class ReviewCreateSerializer(serializers.ModelSerializer):  
     class Meta:
         model = Review
-        fields = ['blog', 'rating', 'comment']
+        fields = ['blog', 'comment']
         extra_kwargs = {
             'blog': {'read_only': True},
             'rating': {'required': True},
@@ -130,21 +136,31 @@ class ReviewListSerializer(serializers.ModelSerializer):
     class Meta:
         model = Review
         fields = [
-            'id', 'blog', 'reviewer', 'rating', 'comment',
+            'id', 'blog', 'reviewer', 'comment',
             'created_at', 'total_likes', 'likes', 'comments'
         ]
         read_only_fields = ['blog', 'reviewer', 'created_at']  # solo lectura para blog, reviewer y created_at
 
-# 📝 Blog con imagen
 class BlogSerializer(serializers.ModelSerializer):
     reviews = ReviewSerializer(many=True, read_only=True)
+    image = serializers.SerializerMethodField()
+    author = serializers.StringRelatedField()
+    tags = serializers.StringRelatedField(many=True, read_only=True)
 
     class Meta:
         model = Blog
         fields = [
             'id', 'title', 'content', 'author', 'created_at',
-            'updated_at', 'tags', 'image', 'reviews'
+            'updated_at', 'tags', 'image', 'reviews', 'rating'
         ]
+
+    def get_image(self, obj):
+        if obj.image:
+            return obj.image.url
+        return None
+
+
+
 
 class BlogCreateSerializer(serializers.ModelSerializer):
     class Meta:

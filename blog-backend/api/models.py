@@ -17,6 +17,7 @@ class Blog(models.Model):
     updated_at = models.DateTimeField(auto_now=True)
     tags = models.ManyToManyField(Tag, related_name='blogs', blank=True)
     image = CloudinaryField('image', blank=True, null=True)
+    rating = models.FloatField(default=0.0, validators=[MinValueValidator(1.0), MaxValueValidator(5.0)])
 
     def __str__(self):
         return self.title
@@ -30,7 +31,6 @@ class Blog(models.Model):
 class Review(models.Model):
     blog = models.ForeignKey(Blog, on_delete=models.CASCADE, related_name='reviews')
     reviewer = models.ForeignKey(User, on_delete=models.CASCADE)
-    rating = models.IntegerField(validators=[MinValueValidator(1), MaxValueValidator(5)])
     comment = models.TextField()
     created_at = models.DateTimeField(auto_now_add=True)
     likes = models.ManyToManyField(User, related_name='liked_reviews', blank=True)

@@ -1,133 +1,113 @@
-from rest_framework import viewsets, permissions, status, generics
+from rest_framework import generics, permissions, status
 from rest_framework.response import Response
-from rest_framework.decorators import action
 from rest_framework_simplejwt.views import TokenObtainPairView
-from rest_framework_simplejwt.tokens import RefreshToken, TokenError
-from rest_framework import generics
-from django.shortcuts import get_object_or_404
-from rest_framework.views import APIView
+from django.contrib.auth.models import User
 from .models import Blog, Review, Comment, Profile
 from .serializers import (
-    UserSerializer,
-    BlogSerializer, BlogCreateSerializer, BlogListSerializer, BlogUpdateSerializer,
-    ReviewSerializer, ReviewCreateSerializer, ReviewListSerializer,
+    UserSerializer, RegisterSerializer, ProfileSerializer, CustomTokenObtainPairSerializer,
     CommentSerializer, CommentCreateSerializer, CommentListSerializer,
-    CustomTokenObtainPairSerializer, ProfileSerializer,
+    ReviewSerializer, ReviewCreateSerializer, ReviewListSerializer,
+    BlogSerializer, BlogCreateSerializer, BlogListSerializer, BlogUpdateSerializer
 )
-from django.contrib.auth.models import User
 
-#View de Login y Logout
+# --- Usuarios ---
+
+class RegisterView(generics.CreateAPIView):
+    queryset = User.objects.all()
+    serializer_class = RegisterSerializer
+    permission_classes = [permissions.AllowAny]
+
 class CustomTokenObtainPairView(TokenObtainPairView):
     serializer_class = CustomTokenObtainPairSerializer
 
-class LogoutView(APIView):
-    permission_classes = [permissions.IsAuthenticated]
-
-    def post(self, request):
-        try:
-            refresh_token = request.data["refresh"]
-            token = RefreshToken(refresh_token)
-            token.blacklist()
-            return Response({"detail": "Logout successful"}, status=status.HTTP_205_RESET_CONTENT)
-        except KeyError:
-            return Response({"detail": "Refresh token is required"}, status=status.HTTP_400_BAD_REQUEST)
-        except TokenError:
-            return Response({"detail": "Invalid or expired token"}, status=status.HTTP_400_BAD_REQUEST)
-
-#View de Usuario 
-class UserViewSet(viewsets.ModelViewSet):
-    queryset = User.objects.all()
+class UserDetailView(generics.RetrieveAPIView):
     serializer_class = UserSerializer
     permission_classes = [permissions.IsAuthenticated]
 
-    def get_permissions(self):
-        # Permitir que cualquiera cree un usuario (registro)
-        if self.action == 'create':
-            return [permissions.AllowAny()]
-        return super().get_permissions()
+    def get_object(self):
+        return self.request.user
 
-    def get_serializer_class(self):
-        return UserSerializer
+# --- Perfil ---
 
-    def perform_create(self, serializer):
-        serializer.save()
-    
-    # Opcional: endpoint para ver perfil propio
-    @action(detail=False, methods=['get'], permission_classes=[permissions.IsAuthenticated])
-    def me(self, request):
-        serializer = self.get_serializer(request.user)
-        return Response(serializer.data)
-
-#View de Blog
-class BlogViewSet(viewsets.ModelViewSet):
-    queryset = Blog.objects.all()
-
-    def get_permissions(self):
-        if self.action in ['create', 'update', 'partial_update', 'destroy']:
-            return [permissions.IsAuthenticated()]
-        return [permissions.AllowAny()]
-
-    def get_serializer_class(self):
-        if self.action == 'create':
-            return BlogCreateSerializer
-        elif self.action in ['update', 'partial_update']:
-            return BlogUpdateSerializer
-        elif self.action == 'list':
-            return BlogListSerializer
-        else:
-            return BlogSerializer
-
-    def perform_create(self, serializer):
-        serializer.save(author=self.request.user.username)
-
-
-#View de Review
-class ReviewViewSet(viewsets.ModelViewSet):
-    queryset = Review.objects.all()
-
-    def get_permissions(self):
-        if self.action in ['create', 'update', 'partial_update', 'destroy']:
-            return [permissions.IsAuthenticated()]
-        return [permissions.AllowAny()]
-
-    def get_serializer_class(self):
-        if self.action == 'create':
-            return ReviewCreateSerializer
-        elif self.action == 'list':
-            return ReviewListSerializer
-        else:
-            return ReviewSerializer
-
-    def perform_create(self, serializer):
-        serializer.save(reviewer=self.request.user)
-
-#View de Comment
-class CommentViewSet(viewsets.ModelViewSet):
-    queryset = Comment.objects.all()
-
-    def get_permissions(self):
-        if self.action in ['create', 'update', 'partial_update', 'destroy']:
-            return [permissions.IsAuthenticated()]
-        return [permissions.AllowAny()]
-
-    def get_serializer_class(self):
-        if self.action == 'create':
-            return CommentCreateSerializer
-        elif self.action == 'list':
-            return CommentListSerializer
-        else:
-            return CommentSerializer
-
-    def perform_create(self, serializer):
-        serializer.save(commenter=self.request.user)
-
-
-# View de Profile
-class ProfileDetail(generics.RetrieveUpdateAPIView):
+class ProfileDetailView(generics.RetrieveUpdateAPIView):
     queryset = Profile.objects.all()
     serializer_class = ProfileSerializer
     permission_classes = [permissions.IsAuthenticated]
 
     def get_object(self):
-        # Devuelve el perfil del usuario autenticado
-        return get_object_or_404(Profile, user=self.request.user)
+        # El perfil del usuario autenticado
+        return self.request.user.profile
+
+# --- Comentarios ---
+
+class CommentCreateView(generics.CreateAPIView):
+    serializer_class = CommentCreateSerializer
+    permission_classes = [permissions.IsAuthenticated]
+
+    def perform_create(self, serializer):
+        # Se espera que la vista reciba el review en la URL o contexto
+        review_id = self.kwargs.get('review_id')
+        serializer.save(commenter=self.request.user, review_id=review_id)
+
+class CommentListView(generics.ListAPIView):
+    serializer_class = CommentListSerializer
+    permission_classes = [permissions.AllowAny]
+
+    def get_queryset(self):
+        review_id = self.kwargs.get('review_id')
+        return Comment.objects.filter(review_id=review_id).order_by('-created_at')
+
+class CommentDetailView(generics.RetrieveUpdateDestroyAPIView):
+    queryset = Comment.objects.all()
+    serializer_class = CommentSerializer
+    permission_classes = [permissions.IsAuthenticatedOrReadOnly]
+
+# --- Reviews ---
+
+class ReviewCreateView(generics.CreateAPIView):
+    serializer_class = ReviewCreateSerializer
+    permission_classes = [permissions.IsAuthenticated]
+
+    def perform_create(self, serializer):
+        blog_id = self.kwargs.get('blog_id')
+        serializer.save(reviewer=self.request.user, blog_id=blog_id)
+
+class ReviewListView(generics.ListAPIView):
+    serializer_class = ReviewListSerializer
+    permission_classes = [permissions.AllowAny]
+
+    def get_queryset(self):
+        blog_id = self.kwargs.get('blog_id')
+        return Review.objects.filter(blog_id=blog_id).order_by('-created_at')
+
+class ReviewDetailView(generics.RetrieveUpdateDestroyAPIView):
+    queryset = Review.objects.all()
+    serializer_class = ReviewSerializer
+    permission_classes = [permissions.IsAuthenticatedOrReadOnly]
+
+# --- Blogs ---
+
+class BlogCreateView(generics.CreateAPIView):
+    serializer_class = BlogCreateSerializer
+    permission_classes = [permissions.IsAuthenticated]
+
+    def perform_create(self, serializer):
+        serializer.save(author=self.request.user)
+
+class BlogListView(generics.ListAPIView):
+    queryset = Blog.objects.all().order_by('-created_at')
+    serializer_class = BlogListSerializer
+    permission_classes = [permissions.AllowAny]
+
+class BlogDetailView(generics.RetrieveAPIView):
+    queryset = Blog.objects.all()
+    serializer_class = BlogSerializer
+    permission_classes = [permissions.AllowAny]
+
+class BlogUpdateView(generics.UpdateAPIView):
+    queryset = Blog.objects.all()
+    serializer_class = BlogUpdateSerializer
+    permission_classes = [permissions.IsAuthenticated]
+
+    def perform_update(self, serializer):
+        serializer.save()

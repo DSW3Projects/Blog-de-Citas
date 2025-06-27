@@ -1,30 +1,37 @@
 from django.contrib import admin
-from .models import Blog, Review, Comment, Profile, Tag
+from django.contrib.auth.models import User
+from .models import Blog, Review, Comment, Profile
 
+# Admin para Blog
 @admin.register(Blog)
 class BlogAdmin(admin.ModelAdmin):
-    list_display = ('title', 'author', 'created_at')
-    search_fields = ('title', 'content', 'author')
+    list_display = ('title', 'author', 'created_at', 'updated_at')
+    search_fields = ('title', 'content', 'author__username')
     list_filter = ('created_at',)
 
+# Admin para Review
 @admin.register(Review)
 class ReviewAdmin(admin.ModelAdmin):
-    list_display = ('blog', 'reviewer', 'rating', 'created_at')
-    list_filter = ('rating', 'created_at')
-    search_fields = ('reviewer__username', 'blog__title')
+    list_display = ('blog', 'reviewer', 'created_at')
+    search_fields = ('blog__title', 'reviewer__username')
 
+# Admin para Comment
 @admin.register(Comment)
 class CommentAdmin(admin.ModelAdmin):
     list_display = ('review', 'commenter', 'created_at')
-    search_fields = ('content',)
+    search_fields = ('review__blog__title', 'commenter__username', 'content')
     list_filter = ('created_at',)
 
-@admin.register(Profile)
-class ProfileAdmin(admin.ModelAdmin):
-    list_display = ('user',)
-    search_fields = ('user__username',)
 
-@admin.register(Tag)
-class TagAdmin(admin.ModelAdmin):
-    list_display = ('name',)
-    search_fields = ('name',)
+# Opcional: Extender el admin de User para mostrar perfiles relacionados
+from django.contrib.auth.admin import UserAdmin as BaseUserAdmin
+
+class ProfileInline(admin.StackedInline):
+    model = Profile
+    can_delete = False
+    verbose_name_plural = 'Perfiles'
+
+class UserAdmin(BaseUserAdmin):
+    inlines = (ProfileInline,)
+
+
